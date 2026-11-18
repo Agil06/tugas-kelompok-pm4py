@@ -138,3 +138,4 @@ dmypy.json
 
 # Renovate bot
 renovate.json5
+ignore_TUGAS-PM4PY/*.xes

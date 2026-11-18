@@ -1,0 +1,10 @@
+analysis_category,filter_rule,case_count,denominator_cases,percentage,mean_cycle_time_days
+Activity & Endpoint Filter,All Cases (Unfiltered Log),31509,31509,100.00%,21.90
+Activity & Endpoint Filter,Contains 'O_Accepted',17228,31509,54.68%,18.13
+Activity & Endpoint Filter,Contains 'O_Refused',3720,31509,11.81%,16.88
+Activity & Endpoint Filter,Ends With 'O_Cancelled',4436,31509,14.08%,23.51
+Rework Filter (Any Resource),activity == 'W_Assess Potential Fraud' AND lifecycle == 'complete' (>= 2),13,31509,0.0413%,-
+Rework Filter (Same Resource),activity == 'W_Assess Potential Fraud' AND lifecycle == 'complete' (>= 2 by same resource),3,31509,0.0095%,-
+Sequence Filter (Eventually Follows),'O_Cancelled' eventually followed by 'O_Accepted' (i < j),902,31509,2.86%,-
+Duration Split (Fast Cases),Case duration < 45.0 days,30198,31509,95.84%,20.36
+Duration Split (Slow Cases),Case duration >= 45.0 days,1311,31509,4.16%,57.27
