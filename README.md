@@ -1,105 +1,101 @@
-# PM4Py
+# PM4Py Process Mining & Event Log Explorer (`bpic17_app`)
 
-[![PyPI version](https://img.shields.io/pypi/v/pm4py.svg)](https://pypi.org/project/pm4py/)
-[![Python versions](https://img.shields.io/pypi/pyversions/pm4py.svg)](https://pypi.org/project/pm4py/)
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-[![DOI](https://img.shields.io/badge/DOI-10.1016%2Fj.simpa.2023.100556-blue.svg)](https://doi.org/10.1016/j.simpa.2023.100556)
+Aplikasi desktop berbasis **Python**, **PM4Py**, **pandas**, **Matplotlib**, dan **PySide6** untuk membaca, memvalidasi, memfilter, dan mengeksplorasi event log XES (khususnya **BPI Challenge 2017 / BPIC17**) secara interaktif tanpa angka hard-coded.
 
-PM4Py is a Python library providing state-of-the-art algorithms and tools for process mining.
+---
 
-It is developed and maintained by [Process Intelligence Solutions GmbH (PIS)](https://processintelligence.solutions/).
+## 1. Struktur Folder
 
-## Getting started
-
-Installation instructions, tutorials, and the full documentation are maintained on the PM4Py website:
-
-- [Installation guide](https://processintelligence.solutions/pm4py/installation)
-- [Tutorials and examples](https://processintelligence.solutions/pm4py/examples)
-- [Feature overview](https://processintelligence.solutions/pm4py/features)
-- [API documentation](https://processintelligence.solutions/pm4py/)
-
-## License
-
-The open-source version of PM4Py, available on [GitHub](https://github.com/process-intelligence-solutions/pm4py), is
-licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE).
-
-A separate version of PM4Py is available for **commercial use in closed-source environments** under a different
-license. See [PM4Py Licensing](https://processintelligence.solutions/pm4py#licensing) for details.
-
-## Optional dependencies
-
-The default installation covers mainstream usage. Additional integrations are grouped by feature in `pyproject.toml`:
-
-| Extra           | Installs                                      |
-|-----------------|-----------------------------------------------|
-| `calendars`     | workalendar                                   |
-| `connectors`    | requests                                      |
-| `llm`           | openai, requests                              |
-| `ml`            | pyemd, scikit-learn                           |
-| `ocel`          | jsonschema, pyarrow                           |
-| `polars`        | polars (dataframe support)                    |
-| `solvers`       | cvxopt                                        |
-| `visualization` | pyvis                                         |
-| `windows`       | pygetwindow, pynput, pywin32 (Windows only)   |
-
-The `stable` extra pins the exact dependency versions validated by the project and used in CI.
-
-### Polars
-
-Polars 1.40.1 and 2.x are supported. Joins used in filtering and enrichment preserve event order, including when lazy
-queries run on the streaming engine (the default in Polars 2.0).
-
-### PuLP
-
-SciPy is the default LP solver; PuLP is optional. If PuLP is installed, PM4Py selects the matching backend for
-PuLP 3.x or 4.x. PuLP 4 requires CBC to be installed separately, either with `python -m pip install "pulp[cbc]"` or by
-putting `cbc` on your `PATH`.
-
-## Release notes
-
-See [CHANGELOG.md](CHANGELOG.md) for incremental updates.
-
-## Contributing
-
-Before contributing, please review the
-[contributing guidelines and Contributor License Agreement (CLA)](https://processintelligence.solutions/pm4py/contributing).
-
-For a source checkout, install the project with `python -m pip install -e .`. Build, CI, and lint dependencies are
-standard dependency groups and can be installed with, for example, `python -m pip install --group lint`
-(requires pip 25.1 or later).
-
-## Third-party dependencies
-
-As a scientific library in the Python ecosystem, PM4Py relies on external libraries. The licenses of all direct
-dependencies are in the [`third_party/`](third_party/) folder, and
-[`third_party/LICENSES_TRANSITIVE`](third_party/LICENSES_TRANSITIVE) lists every transitive dependency with its license.
-
-## Citing PM4Py
-
-If you use PM4Py in your scientific work, please cite:
-
-> Alessandro Berti, Sebastiaan van Zelst, and Daniel Schuster (2023). PM4Py: A process mining library for Python.
-> *Software Impacts*, 17, 100556. https://doi.org/10.1016/j.simpa.2023.100556
-
-[DOI](https://doi.org/10.1016/j.simpa.2023.100556) | [Article](https://www.sciencedirect.com/science/article/pii/S2665963823000933)
-
-BibTeX:
-
-```bibtex
-@article{pm4py,
-  title   = {{PM4Py}: A process mining library for {Python}},
-  author  = {Berti, Alessandro and van Zelst, Sebastiaan and Schuster, Daniel},
-  journal = {Software Impacts},
-  volume  = {17},
-  pages   = {100556},
-  year    = {2023},
-  issn    = {2665-9638},
-  doi     = {10.1016/j.simpa.2023.100556},
-  url     = {https://www.sciencedirect.com/science/article/pii/S2665963823000933}
-}
+```text
+tugas-kelompok-pm4py/
+├── bpic17_app/
+│   ├── __init__.py          # Metadata versi paket
+│   ├── __main__.py          # Entrypoint aplikasi (`python -m bpic17_app`)
+│   ├── analyzer.py          # Mesin analisis PM4Py & pandas (impor, filter, durasi, ekspor CSV)
+│   └── gui.py               # Antarmuka desktop PySide6, QThread worker, & grafik Matplotlib
+├── tests_app/
+│   └── test_analyzer.py     # Unit test log sintetis untuk skenario edge cases & verifikasi GUI
+├── requirements.txt         # Daftar dependency untuk reproduksi environment
+└── README.md                # Dokumentasi instalasi, penggunaan, dan pemetaan soal ke menu
 ```
 
-## Legal notice
+---
 
-This repository is managed by Process Intelligence Solutions GmbH. Further information about PIS is available at
-[processintelligence.solutions](https://processintelligence.solutions).
+## 2. Langkah Instalasi di Komputer Lain
+
+**Prasyarat:** Python `>= 3.11` (teruji pada Python 3.12).
+
+1. **Clone / ekstrak source code** lalu masuk ke direktori proyek:
+   ```powershell
+   cd tugas-kelompok-pm4py
+   ```
+2. **Buat dan aktifkan virtual environment:**
+   - **Windows (PowerShell):**
+     ```powershell
+     python -m venv .venv
+     .\.venv\Scripts\Activate.ps1
+     ```
+   - **macOS / Linux:**
+     ```bash
+     python3 -m venv .venv
+     source .venv/bin/activate
+     ```
+3. **Instal seluruh dependency dari `requirements.txt`:**
+   ```powershell
+   pip install -r requirements.txt
+   ```
+   *(Menginstal `pm4py` otomatis turut menginstal `pandas`, `numpy`, `matplotlib`, `lxml`, `scipy`, `tqdm`, dll.)*
+
+---
+
+## 3. Petunjuk Penggunaan
+
+### Menjalankan Aplikasi Desktop
+Pastikan virtual environment aktif, lalu jalankan:
+```powershell
+python -m bpic17_app
+```
+Atau langsung memuat file `.xes` tertentu lewat argumen CLI:
+```powershell
+python -m bpic17_app --xes "path/ke/BPI Challenge 2017.xes"
+```
+
+### Alur Kerja di Aplikasi
+1. **Impor Dataset XES:** Klik tombol **Open XES File...** di pojok kiri atas (atau menu `File → Open XES Event Log...`) lalu pilih file `.xes` / `.xes.gz`. Proses parsing berjalan di *background thread* (`QThread`) dengan progress bar sehingga antarmuka tidak membeku.
+2. **Eksplorasi Menu Tab:** Pilih salah satu dari 6 tab utama di bagian atas untuk melihat ringkasan, menerapkan filter dinamis, atau menganalisis bottleneck durasi.
+3. **Inspeksi Bukti Kasus (*Case Explorer*):** Pada tabel hasil filter mana pun, klik **Inspect Case in Explorer** (atau *double-click* baris case) untuk langsung membuka urutan event kronologis lengkap (timestamp, aktivitas, lifecycle, resource, OfferID) beserta *highlight* bukti.
+4. **Ekspor & Reset:** Klik **Export CSV** di setiap tabel untuk menyimpan daftar case/bukti terpilih, **Export Summary (CSV)** di bar atas untuk ringkasan metrik, atau **Reload / Reset Filters** untuk memuat ulang analisis.
+5. **Info Versi Environment:** Klik **About** di pojok kanan atas untuk melihat versi Python, PM4Py, pandas, numpy, dan PySide6.
+
+### Menjalankan Pengujian Unit (Log Sintetis & Edge Cases)
+```powershell
+python -m unittest discover -s tests_app -v
+```
+
+---
+
+## 4. Pemetaan Soal Bab 11 (`BPIC-2017.pdf`) ke Navigasi Menu Aplikasi
+
+Antarmuka aplikasi disusun berdasarkan fungsi analitik Process Mining yang umum agar pengguna dapat mengeksplorasi log secara bebas. Berikut pemetaan tiap soal wajib (dan fitur tambahan) ke tab menu serta pengaturan filter yang dipilih:
+
+| Soal / Kebutuhan | Menu Tab di Aplikasi | Navigasi & Pengaturan Filter | Output & Bukti yang Ditampilkan |
+| :--- | :--- | :--- | :--- |
+| **Impor & Validasi XES** | **Top Bar** & **`Log Overview`** | Klik **Open XES File...** → pilih `BPI Challenge 2017.xes` | Nama file, status validasi, jumlah case & event, daftar atribut XES, nilai `lifecycle:transition`, & ketersediaan `org:resource`. |
+| **Exercise 11.7 A** *(Jumlah keseluruhan case)* | **`Log Overview`** | Langsung tampil di kartu KPI **TOTAL CASES** (atau baris `All Cases` di tab berikutnya) | `31,509` unique cases. |
+| **Exercise 11.7 B** *(Rata-rata cycle time seluruh case)* | **`Log Overview`** | Langsung tampil di kartu KPI **MEAN CYCLE TIME** & tabel **All Cases & Cycle Time Duration** | `21.9 days` (`21.8996 days`) dihitung dari `max - min` timestamp trace utuh. |
+| **Exercise 11.7 C** *(Successful cases & mean cycle time — contains `O_Accepted`)* | **`Activity & Endpoint Filter`** | • **Filter Rule:** `Contains Activity (≥ 1 in trace)`<br>• **Activity:** `O_Accepted`<br>• **Lifecycle:** `All` → klik **Apply Filter** *(opsional: klik **Pin to Comparison**)* | Jumlah case (`17,228`), persentase (`54.68%`), mean cycle time trace utuh (`18.1 days`), daftar case ID, & tombol **Inspect Case in Explorer**. |
+| **Exercise 11.7 D** *(Unsuccessful cases & mean cycle time — contains `O_Refused`)* | **`Activity & Endpoint Filter`** | • **Filter Rule:** `Contains Activity (≥ 1 in trace)`<br>• **Activity:** `O_Refused`<br>• **Lifecycle:** `All` → klik **Apply Filter** | Jumlah case (`3,720`), persentase (`11.81%`), mean cycle time trace utuh (`16.9 days`), daftar case ID (tidak dipaksa saling eksklusif dengan 11.7 C). |
+| **Exercise 11.7 E** *(Canceled cases & mean cycle time — event terakhir `O_Cancelled`)* | **`Activity & Endpoint Filter`** | • **Filter Rule:** `Ends With Activity (Last event in trace)`<br>• **Activity:** `O_Cancelled`<br>• **Lifecycle:** `All` → klik **Apply Filter** | Jumlah case (`4,436`), persentase (`14.08%`), mean cycle time (`23.5 days`), daftar case yang benar-benar berakhir di `O_Cancelled`. |
+| **Exercise 11.15** *(`W_Assess Potential Fraud` selesai `complete` minimal 2×)* | **`Rework & Resource Filter`** | • **Activity:** `W_Assess potential fraud`<br>• **Lifecycle:** `complete`<br>• **Min Occurrences (≥):** `2`<br>• **Resource Scope:** `Any Resource (Case-Level Rework)` → klik **Apply Filter** | Jumlah case (`13 cases` / `0.0413%`), jumlah event bukti (`27 events`), tabel case terpilih, & tabel **Supporting Event Evidence** berstatus `complete`. |
+| **Exercise 11.18** *(`W_Assess Potential Fraud` selesai `complete` minimal 2× oleh resource sama)* | **`Rework & Resource Filter`** | • Pengaturan sama seperti 11.15<br>• Ubah **Resource Scope:** `Same Resource (Identical Resource in Case)`<br>• Centang **Exclude Empty / UNKNOWN Resource** → klik **Apply Filter** | Jumlah case (`3 cases`), Resource ID identik (`User_144`, `User_143`), jumlah penyelesaian per resource, timestamp bukti, & tombol **Inspect Case in Explorer**. |
+| **Exercise 11.22** *(`O_Cancelled` diikuti `O_Accepted` kemudian dalam trace & persentasenya)* | **`Sequence & Follower Filter`** | • **First Activity (A):** `O_Cancelled`<br>• **Relation:** `Eventually Followed By (A ... → B, i < j)`<br>• **Second Activity (B):** `O_Accepted`<br>• **Lifecycle:** `All` → klik **Apply Sequence Filter** | Jawaban `Yes`, numerator (`902 cases`), denominator (`31,509 cases`), persentase (`2.86%`), & tabel pasangan event saksi (*witness pairs* + `events_between`). |
+| **Fitur Tambahan — Example 11.10** *(Fast `< 45d` vs Slow `≥ 45d` & Histogram)* | **`Duration & Bottlenecks`** | • Atur **Slow Case Threshold (days):** `45.0` → klik **Apply Split** | Perbandingan jumlah & persentase Fast (`30,198`) vs Slow (`1,311`), histogram distribusi durasi, grafik bottleneck aktivitas, & daftar *Slow Cases*. |
+| **Case Explorer & Ekspor CSV** | **`Case Explorer`** & tombol **Export CSV** di tiap tab | Cari Case ID di panel kiri atau klik **Inspect Case in Explorer** dari tab mana saja; pilih **Highlight Activity** di kanan atas | Urutan kronologis event (`step`, `timestamp`, `activity`, `lifecycle`, `resource`, `OfferID`) dengan *highlight* warna & ekspor CSV. |
+
+---
+
+## 5. Sumber Dataset
+
+Dataset **BPI Challenge 2017 (`BPI Challenge 2017.xes`)** tidak disertakan dalam repositori ini karena ukurannya (~552 MB). Dataset asli dapat diunduh dari sumber resmi:
+
+- **4TU.ResearchData — BPI Challenge 2017:** https://data.4tu.nl/articles/dataset/BPI_Challenge_2017/12696884 (`doi:10.4121/uuid:5f3067df-f10b-45da-b98b-86ae4c7a310b`)
