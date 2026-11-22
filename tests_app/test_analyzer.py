@@ -341,6 +341,76 @@ class TestBPIC17AnalyzerEdgeCases(unittest.TestCase):
             )
             self.assertEqual(r_direct["case_count"], 1)
 
+    def test_synthetic_xes_file_all_edge_cases(self):
+        """Verify the permanent tests_app/synthetic_edge_cases.xes demo file covers all 8 edge cases."""
+        xes_path = os.path.join(os.path.dirname(__file__), "synthetic_edge_cases.xes")
+        self.assertTrue(os.path.isfile(xes_path), f"Missing synthetic demo log: {xes_path}")
+        bundle = run_full_analysis(xes_path)
+
+        # 11.7 A & B: 10 cases, exact mean 10.0 days
+        self.assertEqual(bundle.ex_11_7["total_cases"], 10)
+        self.assertAlmostEqual(bundle.ex_11_7["mean_cycle_days"], 10.0, places=4)
+
+        # 11.7 C: 4 cases (CASE_01 counted once despite 2 O_Accepted; CASE_04 overlaps with D)
+        self.assertEqual(bundle.ex_11_7["accepted_count"], 4)
+        self.assertEqual(
+            set(bundle.ex_11_7["cases_11_7_c"]["case_id"].tolist()),
+            {
+                "CASE_01_DUP_ACCEPTED",
+                "CASE_04_BOTH_ACCEPT_REFUSE",
+                "CASE_09_CANCEL_THEN_ACCEPT",
+                "CASE_10_ACCEPT_THEN_CANCEL",
+            },
+        )
+
+        # 11.7 D: 1 case (CASE_04)
+        self.assertEqual(bundle.ex_11_7["refused_count"], 1)
+        self.assertEqual(
+            bundle.ex_11_7["cases_11_7_d"]["case_id"].tolist(),
+            ["CASE_04_BOTH_ACCEPT_REFUSE"],
+        )
+
+        # 11.7 E: 2 cases ending with O_Cancelled (CASE_02 mid-cancelled excluded)
+        self.assertEqual(bundle.ex_11_7["canceled_count"], 2)
+        self.assertEqual(
+            set(bundle.ex_11_7["cases_11_7_e"]["case_id"].tolist()),
+            {"CASE_03_END_CANCELLED", "CASE_10_ACCEPT_THEN_CANCEL"},
+        )
+
+        # 11.15: 3 cases (CASE_05 scheduled 2x / completed 1x excluded)
+        self.assertEqual(bundle.ex_11_15["case_count"], 3)
+        self.assertEqual(
+            set(bundle.ex_11_15["cases_table"]["case_id"].tolist()),
+            {
+                "CASE_06_FRAUD_DIFF_RES",
+                "CASE_07_FRAUD_SAME_RES",
+                "CASE_08_FRAUD_EMPTY_RES",
+            },
+        )
+
+        # 11.18: 1 case (only CASE_07 by User_X; CASE_06 diff resources & CASE_08 empty/UNKNOWN excluded)
+        self.assertEqual(bundle.ex_11_18["case_count"], 1)
+        self.assertEqual(
+            bundle.ex_11_18["cases_table"]["case_id"].tolist(),
+            ["CASE_07_FRAUD_SAME_RES"],
+        )
+        self.assertEqual(
+            bundle.ex_11_18["cases_table"]["resource"].tolist(),
+            ["User_X"],
+        )
+
+        # 11.22: 1 / 10 cases = 10.0% (CASE_09 non-adjacent matches; CASE_10 reverse order excluded)
+        self.assertEqual(bundle.ex_11_22["case_count"], 1)
+        self.assertAlmostEqual(bundle.ex_11_22["percentage"], 10.0, places=4)
+        self.assertEqual(
+            bundle.ex_11_22["witness_table"]["case_id"].tolist(),
+            ["CASE_09_CANCEL_THEN_ACCEPT"],
+        )
+
+        # Fast (< 45d) vs Slow (>= 45d): 9 fast, 1 slow (CASE_09 = 50d)
+        self.assertEqual(bundle.fast_slow["fast_count"], 9)
+        self.assertEqual(bundle.fast_slow["slow_count"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

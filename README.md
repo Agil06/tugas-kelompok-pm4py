@@ -14,9 +14,10 @@ tugas-kelompok-pm4py/
 │   ├── analyzer.py          # Mesin analisis PM4Py & pandas (impor, filter, durasi, ekspor CSV)
 │   └── gui.py               # Antarmuka desktop PySide6, QThread worker, & grafik Matplotlib
 ├── tests_app/
-│   └── test_analyzer.py     # Unit test log sintetis untuk skenario edge cases & verifikasi GUI
-├── requirements.txt         # Daftar dependency untuk reproduksi environment
-└── README.md                # Dokumentasi instalasi, penggunaan, dan pemetaan soal ke menu
+│   ├── test_analyzer.py          # Unit test log sintetis untuk skenario edge cases & verifikasi GUI
+│   └── synthetic_edge_cases.xes  # File XES sintetis (10 case) siap dibuka di GUI saat demonstrasi
+├── requirements.txt              # Daftar dependency untuk reproduksi environment
+└── README.md                     # Dokumentasi instalasi, penggunaan, dan pemetaan soal ke menu
 ```
 
 ---
@@ -67,10 +68,18 @@ python -m bpic17_app --xes "path/ke/BPI Challenge 2017.xes"
 4. **Ekspor & Reset:** Klik **Export CSV** di setiap tabel untuk menyimpan daftar case/bukti terpilih, **Export Summary (CSV)** di bar atas untuk ringkasan metrik, atau **Reload / Reset Filters** untuk memuat ulang analisis.
 5. **Info Versi Environment:** Klik **About** di pojok kanan atas untuk melihat versi Python, PM4Py, pandas, numpy, dan PySide6.
 
-### Menjalankan Pengujian Unit (Log Sintetis & Edge Cases)
-```powershell
-python -m unittest discover -s tests_app -v
-```
+### Menjalankan Pengujian Unit & Demo Log Sintetis (Edge Cases)
+1. **Pengujian otomatis via terminal:**
+   ```powershell
+   python -m unittest discover -s tests_app -v
+   ```
+2. **Demonstrasi interaktif di GUI:** Klik **Open XES File...** lalu pilih `tests_app/synthetic_edge_cases.xes` (10 case buatan dengan total rata-rata durasi tepat `10.00` hari) untuk membuktikan seluruh 8 skenario *edge case*:
+   - `CASE_01_DUP_ACCEPTED`: `O_Accepted` 2× → dihitung 1× di filter `Contains O_Accepted` (durasi tetap 10 hari penuh).
+   - `CASE_02_MID_CANCELLED` vs `CASE_03_END_CANCELLED`: hanya yang berakhir `O_Cancelled` yang lolos filter `Ends With O_Cancelled` (2 case total bersama `CASE_10`).
+   - `CASE_04_BOTH_ACCEPT_REFUSE`: lolos kedua filter `Contains O_Accepted` (4 case) dan `Contains O_Refused` (1 case).
+   - `CASE_05_FRAUD_SCHED2_COMP1`: `schedule` 2× tapi `complete` 1× → **tidak** lolos `Rework (complete ≥ 2)`.
+   - `CASE_06_FRAUD_DIFF_RES`, `CASE_07_FRAUD_SAME_RES`, `CASE_08_FRAUD_EMPTY_RES`: ketiganya lolos `Any Resource` (3 case), namun pada `Same Resource` hanya `CASE_07_FRAUD_SAME_RES` (`User_X`) yang lolos (1 case).
+   - `CASE_09_CANCEL_THEN_ACCEPT` vs `CASE_10_ACCEPT_THEN_CANCEL`: pada `Sequence (O_Cancelled → O_Accepted)`, hanya `CASE_09` yang lolos (`1 / 10 = 10.00%`), sekaligus menjadi 1-satunya *Slow Case* (`50.0` hari ≥ 45 hari).
 
 ---
 
