@@ -21,7 +21,7 @@ from PySide6.QtCore import (
     QThread,
     Signal,
 )
-from PySide6.QtGui import QAction, QColor, QFont
+from PySide6.QtGui import QAction, QColor, QFont, QFontMetrics
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -58,6 +58,8 @@ from bpic17_app.analyzer import (
     get_environment_info,
     run_full_analysis,
 )
+from bpic17_app.discovery import DiscoveryResult, discover_process_model
+from bpic17_app.graph_view import ProcessGraphView
 
 
 APP_STYLESHEET = """
@@ -291,6 +293,48 @@ class AnalysisWorker(QThread):
             self.failed.emit(str(exc))
 
 
+class DiscoveryWorker(QThread):
+    """Background worker for running PM4Py discovery algorithms without blocking UI."""
+
+    finished_result = Signal(object)
+    failed = Signal(str)
+
+    def __init__(
+        self,
+        df: pd.DataFrame,
+        algorithm: str,
+        lifecycle: str,
+        top_k_variants: int,
+        min_edge_freq: int,
+        dependency_threshold: float,
+        noise_threshold: float,
+        parent: Optional[QWidget] = None,
+    ) -> None:
+        super().__init__(parent)
+        self._df = df
+        self._algorithm = algorithm
+        self._lifecycle = lifecycle
+        self._top_k = top_k_variants
+        self._min_freq = min_edge_freq
+        self._dep = dependency_threshold
+        self._noise = noise_threshold
+
+    def run(self) -> None:
+        try:
+            res = discover_process_model(
+                self._df,
+                algorithm=self._algorithm,
+                lifecycle=self._lifecycle,
+                top_k_variants=self._top_k,
+                min_edge_freq=self._min_freq,
+                dependency_threshold=self._dep,
+                noise_threshold=self._noise,
+            )
+            self.finished_result.emit(res)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
 class KpiCard(QFrame):
     """Compact metric card displaying title, primary value, and subtitle."""
 
@@ -395,8 +439,27 @@ class SearchableTableWidget(QWidget):
         self.proxy.sort(-1)
         self.table.horizontalHeader().setSortIndicator(-1, Qt.AscendingOrder)
         self.model.set_dataframe(df, highlight_activities=highlight_activities)
-        self.table.resizeColumnsToContents()
+        self._resize_columns_fast(df)
         self._update_count()
+
+    def _resize_columns_fast(self, df: Optional[pd.DataFrame]) -> None:
+        """Size columns from header + first 50 rows in O(1) instead of scanning 31k+ rows."""
+        if df is None or df.empty:
+            return
+        fm = QFontMetrics(self.table.font())
+        sample = df.head(50)
+        for col_idx, col_name in enumerate(df.columns):
+            max_w = fm.horizontalAdvance(str(col_name)) + 28
+            for val in sample.iloc[:, col_idx]:
+                if pd.isna(val):
+                    continue
+                s = f"{float(val):,.2f}" if isinstance(val, (float, np.floating)) else (
+                    f"{int(val):,}" if isinstance(val, (int, np.integer)) else str(val)
+                )
+                w = fm.horizontalAdvance(s[:48]) + 24
+                if w > max_w:
+                    max_w = w
+            self.table.setColumnWidth(col_idx, max(80, min(320, max_w)))
 
     def _on_search_changed(self, text: str) -> None:
         self.proxy.setFilterFixedString(text)
@@ -458,6 +521,7 @@ class MainWindow(QMainWindow):
 
         self.bundle: Optional[AnalysisBundle] = None
         self.worker: Optional[AnalysisWorker] = None
+        self.discovery_worker: Optional[DiscoveryWorker] = None
         self.pinned_outcome_rows: List[Dict[str, Any]] = []
         self.current_outcome_result: Optional[Dict[str, Any]] = None
 
@@ -545,6 +609,7 @@ class MainWindow(QMainWindow):
         self._build_tab_sequence_filter()
         self._build_tab_fast_slow()
         self._build_tab_case_explorer()
+        self._build_tab_discovery()
 
     # ------------------------------------------------------------------
     # Tab 1: Log Overview
@@ -952,6 +1017,120 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(tab, "Case Explorer")
 
     # ------------------------------------------------------------------
+    # Tab 7: Process Discovery & DFG
+    # ------------------------------------------------------------------
+    def _build_tab_discovery(self) -> None:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+
+        fbar = QFrame()
+        fbar.setObjectName("FilterBar")
+        flayout = QHBoxLayout(fbar)
+        flayout.setContentsMargins(10, 6, 10, 6)
+
+        flayout.addWidget(QLabel("<b>Algorithm:</b>"))
+        self.disc_algo_combo = QComboBox()
+        self.disc_algo_combo.addItem("DFG (Frequency)", "dfg_frequency")
+        self.disc_algo_combo.addItem("DFG (Performance)", "dfg_performance")
+        self.disc_algo_combo.addItem("Alpha Miner", "alpha")
+        self.disc_algo_combo.addItem("Heuristics Miner", "heuristics")
+        self.disc_algo_combo.addItem("Inductive Miner (Petri Net)", "inductive_petri")
+        self.disc_algo_combo.addItem("Inductive Miner (Process Tree)", "inductive_tree")
+        self.disc_algo_combo.currentIndexChanged.connect(
+            self._sync_discovery_param_visibility
+        )
+        flayout.addWidget(self.disc_algo_combo)
+
+        flayout.addWidget(QLabel("<b>Lifecycle:</b>"))
+        self.disc_lifecycle_combo = QComboBox()
+        self.disc_lifecycle_combo.addItem("complete")
+        self.disc_lifecycle_combo.addItem("All")
+        flayout.addWidget(self.disc_lifecycle_combo)
+
+        flayout.addWidget(QLabel("<b>Top Variants:</b>"))
+        self.disc_variants_spin = QSpinBox()
+        self.disc_variants_spin.setRange(0, 1000)
+        self.disc_variants_spin.setValue(20)
+        self.disc_variants_spin.setSpecialValueText("All")
+        flayout.addWidget(self.disc_variants_spin)
+
+        self.disc_min_freq_lbl = QLabel("<b>Min Edge Freq:</b>")
+        self.disc_min_freq_spin = QSpinBox()
+        self.disc_min_freq_spin.setRange(1, 1000000)
+        self.disc_min_freq_spin.setValue(1)
+        flayout.addWidget(self.disc_min_freq_lbl)
+        flayout.addWidget(self.disc_min_freq_spin)
+
+        self.disc_dep_lbl = QLabel("<b>Dep. Threshold:</b>")
+        self.disc_dep_spin = QDoubleSpinBox()
+        self.disc_dep_spin.setRange(0.0, 1.0)
+        self.disc_dep_spin.setSingleStep(0.05)
+        self.disc_dep_spin.setValue(0.50)
+        flayout.addWidget(self.disc_dep_lbl)
+        flayout.addWidget(self.disc_dep_spin)
+
+        self.disc_noise_lbl = QLabel("<b>Noise Threshold:</b>")
+        self.disc_noise_spin = QDoubleSpinBox()
+        self.disc_noise_spin.setRange(0.0, 1.0)
+        self.disc_noise_spin.setSingleStep(0.05)
+        self.disc_noise_spin.setValue(0.20)
+        flayout.addWidget(self.disc_noise_lbl)
+        flayout.addWidget(self.disc_noise_spin)
+
+        self.disc_run_btn = QPushButton("Discover")
+        self.disc_run_btn.clicked.connect(self.run_discovery_async)
+        flayout.addWidget(self.disc_run_btn)
+
+        self.disc_fit_btn = QPushButton("Fit View")
+        self.disc_fit_btn.setObjectName("SecondaryBtn")
+        self.disc_fit_btn.clicked.connect(lambda: self.disc_graph_view.fit_graph())
+        flayout.addWidget(self.disc_fit_btn)
+
+        self.disc_export_btn = QPushButton("Export PNG")
+        self.disc_export_btn.setObjectName("SecondaryBtn")
+        self.disc_export_btn.clicked.connect(self._export_discovery_png)
+        flayout.addWidget(self.disc_export_btn)
+        flayout.addStretch()
+
+        layout.addWidget(fbar)
+
+        cards_row = QHBoxLayout()
+        self.disc_kpis = [
+            KpiCard("CASES COVERED", "-", ""),
+            KpiCard("ELEMENTS", "-", ""),
+            KpiCard("EDGES / TRANSITIONS", "-", ""),
+            KpiCard("METRIC", "-", ""),
+        ]
+        for c in self.disc_kpis:
+            cards_row.addWidget(c)
+        layout.addLayout(cards_row)
+
+        splitter = QSplitter(Qt.Horizontal)
+
+        graph_container = QWidget()
+        graph_layout = QVBoxLayout(graph_container)
+        graph_layout.setContentsMargins(0, 0, 0, 0)
+        graph_layout.setSpacing(4)
+
+        self.disc_graph_view = ProcessGraphView()
+        self.disc_inspect_lbl = QLabel("Scroll to zoom · Drag canvas or nodes · Click node/edge to inspect")
+        self.disc_inspect_lbl.setStyleSheet("color: #94a3b8; font-size: 12px; padding: 2px 4px;")
+        self.disc_graph_view.item_inspected.connect(self.disc_inspect_lbl.setText)
+
+        graph_layout.addWidget(self.disc_graph_view, stretch=1)
+        graph_layout.addWidget(self.disc_inspect_lbl)
+
+        self.disc_table = SearchableTableWidget("Model Edges / Relations")
+
+        splitter.addWidget(graph_container)
+        splitter.addWidget(self.disc_table)
+        splitter.setSizes([860, 460])
+        layout.addWidget(splitter, stretch=1)
+
+        self._sync_discovery_param_visibility()
+        self.tabs.addTab(tab, "Process Discovery && DFG")
+
+    # ------------------------------------------------------------------
     # File Loading & Worker Handlers
     # ------------------------------------------------------------------
     def prompt_open_xes(self) -> None:
@@ -1057,6 +1236,16 @@ class MainWindow(QMainWindow):
             self.rw_lifecycle_combo.setCurrentIndex(idx_comp)
         self.rw_lifecycle_combo.blockSignals(False)
 
+        self.disc_lifecycle_combo.blockSignals(True)
+        self.disc_lifecycle_combo.clear()
+        for lc in lifecycles:
+            self.disc_lifecycle_combo.addItem(lc)
+        self.disc_lifecycle_combo.addItem("All")
+        idx_disc_comp = self.disc_lifecycle_combo.findText("complete", Qt.MatchFixedString)
+        if idx_disc_comp >= 0:
+            self.disc_lifecycle_combo.setCurrentIndex(idx_disc_comp)
+        self.disc_lifecycle_combo.blockSignals(False)
+
         self.explorer_highlight_combo.blockSignals(True)
         self.explorer_highlight_combo.clear()
         self.explorer_highlight_combo.addItem("Default (Outcomes & Fraud Assessment)")
@@ -1120,6 +1309,9 @@ class MainWindow(QMainWindow):
         if not bundle.case_stats.empty:
             first_cid = str(bundle.case_stats.iloc[0]["case_id"])
             self._load_case_trace(first_cid)
+
+        # Tab 7: Process Discovery & DFG (initial DFG Frequency view)
+        self.run_discovery_sync()
 
     @staticmethod
     def _set_combo_if_exists(
@@ -1464,6 +1656,93 @@ class MainWindow(QMainWindow):
                         proxy_idx, QAbstractItemView.PositionAtCenter
                     )
                     self.explorer_trace_table.table.selectRow(proxy_idx.row())
+
+    # ------------------------------------------------------------------
+    # Tab 7 Handlers (Process Discovery & DFG)
+    # ------------------------------------------------------------------
+    def _sync_discovery_param_visibility(self) -> None:
+        algo = self.disc_algo_combo.currentData() or "dfg_frequency"
+        show_freq = algo in ("dfg_frequency", "dfg_performance", "heuristics")
+        show_dep = algo == "heuristics"
+        show_noise = algo in ("inductive_petri", "inductive_tree")
+
+        self.disc_min_freq_lbl.setVisible(show_freq)
+        self.disc_min_freq_spin.setVisible(show_freq)
+        self.disc_dep_lbl.setVisible(show_dep)
+        self.disc_dep_spin.setVisible(show_dep)
+        self.disc_noise_lbl.setVisible(show_noise)
+        self.disc_noise_spin.setVisible(show_noise)
+
+    def _get_discovery_params(self) -> tuple:
+        return (
+            self.disc_algo_combo.currentData() or "dfg_frequency",
+            self.disc_lifecycle_combo.currentText() or "complete",
+            int(self.disc_variants_spin.value()),
+            int(self.disc_min_freq_spin.value()),
+            float(self.disc_dep_spin.value()),
+            float(self.disc_noise_spin.value()),
+        )
+
+    def run_discovery_sync(self) -> None:
+        if not self.bundle:
+            return
+        algo, lc, top_k, min_freq, dep, noise = self._get_discovery_params()
+        res = discover_process_model(
+            self.bundle.df,
+            algorithm=algo,
+            lifecycle=lc,
+            top_k_variants=top_k,
+            min_edge_freq=min_freq,
+            dependency_threshold=dep,
+            noise_threshold=noise,
+        )
+        self._apply_discovery_result(res)
+
+    def run_discovery_async(self) -> None:
+        if not self.bundle:
+            return
+        if self.discovery_worker is not None and self.discovery_worker.isRunning():
+            return
+        algo, lc, top_k, min_freq, dep, noise = self._get_discovery_params()
+        self.disc_run_btn.setEnabled(False)
+        self.disc_inspect_lbl.setText(f"Running {self.disc_algo_combo.currentText()}...")
+        self.discovery_worker = DiscoveryWorker(
+            self.bundle.df, algo, lc, top_k, min_freq, dep, noise, self
+        )
+        self.discovery_worker.finished_result.connect(self._on_discovery_finished)
+        self.discovery_worker.failed.connect(self._on_discovery_failed)
+        self.discovery_worker.start()
+
+    def _on_discovery_finished(self, res: DiscoveryResult) -> None:
+        self.disc_run_btn.setEnabled(True)
+        self._apply_discovery_result(res)
+
+    def _on_discovery_failed(self, err_msg: str) -> None:
+        self.disc_run_btn.setEnabled(True)
+        self.disc_inspect_lbl.setText(f"Discovery failed: {err_msg}")
+        QMessageBox.critical(self, "Discovery Error", err_msg)
+
+    def _apply_discovery_result(self, res: DiscoveryResult) -> None:
+        for card, kpi in zip(self.disc_kpis, res.kpis):
+            title, val, sub = kpi
+            card.title_lbl.setText(title.upper())
+            card.set_metrics(val, sub)
+        self.disc_graph_view.render_discovery(res)
+        self.disc_table.set_dataframe(res.table_df)
+        self.disc_inspect_lbl.setText(
+            f"{len(res.nodes):,} nodes · {len(res.edges):,} edges — Scroll to zoom · Drag nodes · Click to inspect"
+        )
+
+    def _export_discovery_png(self) -> None:
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Process Model PNG",
+            f"{self.disc_algo_combo.currentData() or 'process_model'}.png",
+            "PNG Image (*.png)",
+        )
+        if path:
+            self.disc_graph_view.export_png(path)
+            QMessageBox.information(self, "Export PNG", f"Saved graph image to:\n{path}")
 
     def export_all_summary(self) -> None:
         if not self.bundle:

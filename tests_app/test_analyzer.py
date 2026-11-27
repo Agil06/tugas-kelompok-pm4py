@@ -318,7 +318,7 @@ class TestBPIC17AnalyzerEdgeCases(unittest.TestCase):
             app = QApplication.instance() or QApplication([])
             win = MainWindow()
             win.populate_from_bundle(bundle)
-            self.assertEqual(win.tabs.count(), 6)
+            self.assertEqual(win.tabs.count(), 7)
             win.apply_outcome_filter()
             win.pin_current_outcome_filter()
             win.apply_rework_filter()
@@ -410,6 +410,48 @@ class TestBPIC17AnalyzerEdgeCases(unittest.TestCase):
         # Fast (< 45d) vs Slow (>= 45d): 9 fast, 1 slow (CASE_09 = 50d)
         self.assertEqual(bundle.fast_slow["fast_count"], 9)
         self.assertEqual(bundle.fast_slow["slow_count"], 1)
+
+    def test_process_discovery_all_algorithms(self):
+        """Verify DFG (freq/perf), Alpha, Heuristics, Inductive (Petri/Tree) & ProcessGraphView rendering."""
+        from bpic17_app.discovery import discover_process_model
+
+        xes_path = os.path.join(os.path.dirname(__file__), "synthetic_edge_cases.xes")
+        bundle = run_full_analysis(xes_path)
+
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtWidgets import QApplication
+        from bpic17_app.graph_view import ProcessGraphView
+
+        app = QApplication.instance() or QApplication([])
+        view = ProcessGraphView()
+
+        algos = (
+            "dfg_frequency",
+            "dfg_performance",
+            "alpha",
+            "heuristics",
+            "inductive_petri",
+            "inductive_tree",
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for algo in algos:
+                res = discover_process_model(
+                    bundle.df,
+                    algorithm=algo,
+                    lifecycle="complete",
+                    top_k_variants=0,
+                    min_edge_freq=1,
+                    dependency_threshold=0.5,
+                    noise_threshold=0.2,
+                )
+                self.assertGreater(len(res.nodes), 0, f"{algo} produced no nodes")
+                self.assertGreater(len(res.edges), 0, f"{algo} produced no edges")
+                self.assertEqual(len(res.kpis), 4, f"{algo} KPIs mismatch")
+                view.render_discovery(res)
+                app.processEvents()
+                png_path = os.path.join(tmpdir, f"{algo}.png")
+                view.export_png(png_path)
+                self.assertTrue(os.path.isfile(png_path))
 
 
 if __name__ == "__main__":

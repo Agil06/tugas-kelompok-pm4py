@@ -60,13 +60,36 @@ def prepare_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     if missing:
         raise ValueError(f"Missing required XES attributes: {', '.join(missing)}")
 
+    # Fast path: skip redundant copy/to_datetime/sort when already normalized (e.g. r4pm/pm4py output)
+    case_col = df["case:concept:name"]
+    act_col = df["concept:name"]
+    ts_col = df["time:timestamp"]
+
+    needs_copy = False
+    if not pd.api.types.is_string_dtype(case_col) or not pd.api.types.is_string_dtype(act_col):
+        needs_copy = True
+    if not pd.api.types.is_datetime64_any_dtype(ts_col) or getattr(ts_col.dt, "tz", None) is None:
+        needs_copy = True
+    if ts_col.isna().any():
+        needs_copy = True
+
+    if not needs_copy:
+        same_case = case_col.eq(case_col.shift(1))
+        case_changes = int((~same_case).sum())
+        ts_ok = bool((ts_col.ge(ts_col.shift(1)) | (~same_case)).all())
+        if case_changes == int(case_col.nunique()) and ts_ok:
+            return df.reset_index(drop=True) if not df.index.is_monotonic_increasing else df
+
     df = df.copy()
     df["@@orig_pos"] = np.arange(len(df), dtype=np.int64)
-    df["case:concept:name"] = df["case:concept:name"].astype(str)
-    df["concept:name"] = df["concept:name"].astype(str)
-    df["time:timestamp"] = pd.to_datetime(
-        df["time:timestamp"], utc=True, errors="coerce"
-    )
+    if not pd.api.types.is_string_dtype(df["case:concept:name"]):
+        df["case:concept:name"] = df["case:concept:name"].astype(str)
+    if not pd.api.types.is_string_dtype(df["concept:name"]):
+        df["concept:name"] = df["concept:name"].astype(str)
+    if not pd.api.types.is_datetime64_any_dtype(df["time:timestamp"]) or getattr(df["time:timestamp"].dt, "tz", None) is None:
+        df["time:timestamp"] = pd.to_datetime(
+            df["time:timestamp"], utc=True, errors="coerce"
+        )
 
     if df["time:timestamp"].isna().any():
         bad_count = int(df["time:timestamp"].isna().sum())

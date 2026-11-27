@@ -9,10 +9,12 @@ Aplikasi desktop berbasis **Python**, **PM4Py**, **pandas**, **Matplotlib**, dan
 ```text
 tugas-kelompok-pm4py/
 ├── bpic17_app/
-│   ├── __init__.py          # Metadata versi paket
-│   ├── __main__.py          # Entrypoint aplikasi (`python -m bpic17_app`)
-│   ├── analyzer.py          # Mesin analisis PM4Py & pandas (impor, filter, durasi, ekspor CSV)
-│   └── gui.py               # Antarmuka desktop PySide6, QThread worker, & grafik Matplotlib
+│   ├── __init__.py               # Metadata versi paket
+│   ├── __main__.py               # Entrypoint aplikasi (`python -m bpic17_app`)
+│   ├── analyzer.py               # Mesin analisis PM4Py & pandas (impor, filter, durasi, ekspor CSV)
+│   ├── discovery.py              # Process Discovery PM4Py (DFG, Alpha, Heuristics, Inductive) & Sugiyama layout
+│   ├── graph_view.py             # Kanvas vector interaktif PySide6 (zoom, pan, drag node, Bezier edges)
+│   └── gui.py                    # Antarmuka desktop PySide6, QThread worker, & grafik Matplotlib
 ├── tests_app/
 │   ├── test_analyzer.py          # Unit test log sintetis untuk skenario edge cases & verifikasi GUI
 │   └── synthetic_edge_cases.xes  # File XES sintetis (10 case) siap dibuka di GUI saat demonstrasi
